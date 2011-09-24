@@ -1,0 +1,35 @@
+-	net/ssh does not work in Windows , temporary fix are : net/ssh/authentication/agent.rb
+-	#require 'net/ssh/authentication/pageant' if File::ALT_SEPARATOR 
+-	Manualy create .ssh dir on home dir (h:/.ssh)
+
+- net/scp can not work well with remote file having space in name, fix 
+net-scp-1.0.1\lib\net\scp.rb
+
+      def start_command(mode, local, remote, options={}, &callback)
+        session.open_channel do |channel|
+          command = "#{scp_command(mode, options)} \"#{remote}\"" # line 340
+          channel.exec(command) do |ch, success|
+            if success
+              channel[:local   ] = local
+              channel[:remote  ] = remote
+              channel[:options ] = options.dup
+              channel[:callback] = callback
+              channel[:buffer  ] = Net::SSH::Buffer.new
+              channel[:state   ] = "#{mode}_start"
+              channel[:stack   ] = []
+
+              channel.on_close                  { |ch| raise Net::SCP::Error, "SCP did not finish successfully (#{ch[:exit]})" if ch[:exit] != 0 }
+              channel.on_data                   { |ch, data| channel[:buffer].append(data) }
+              channel.on_extended_data          { |ch, type, data| debug { data.chomp } }
+              channel.on_request("exit-status") { |ch, data| channel[:exit] = data.read_long }
+              channel.on_process                { send("#{channel[:state]}_state", channel) }
+            else
+              channel.close
+              raise Net::SCP::Error, "could not exec scp on the remote host"
+            end
+          end
+        end
+      end
+
+
+
